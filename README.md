@@ -14,7 +14,7 @@ A crawler for [知识星球](https://zsxq.com) (Knowledge Planet) paid communiti
 ## Quick Start
 
 ```bash
-git clone https://github.com/zhaole-lv/zsxq-crawler.git
+git clone https://github.com/stoicneko/zsxq-crawler.git
 cd zsxq-crawler
 python3 -m venv venv
 source venv/bin/activate        # bash/zsh
