@@ -15,17 +15,49 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_text(topic: dict[str, Any]) -> str:
-    """Extract the main text content from a topic."""
-    for section in ("talk", "question", "answer", "task", "solution"):
+    """Extract the main text content from a topic (question text for Q&A)."""
+    for section in ("talk", "question", "task", "solution"):
         if section in topic and "text" in topic[section]:
             return topic[section]["text"]
     return ""
 
 
+def _extract_answer(topic: dict[str, Any]) -> dict[str, Any] | None:
+    """Extract the answer from a Q&A topic, including text and author."""
+    if "answer" not in topic:
+        return None
+    answer = topic["answer"]
+    owner = answer.get("owner", {})
+    result: dict[str, Any] = {
+        "text": answer.get("text", ""),
+        "author": {
+            "user_id": str(owner.get("user_id", "")),
+            "name": owner.get("name", ""),
+        },
+    }
+    # Include answer images if present
+    if "images" in answer:
+        images = []
+        for img in answer["images"]:
+            url = (
+                img.get("large", {}).get("url")
+                or img.get("original", {}).get("url")
+                or img.get("thumbnail", {}).get("url")
+                or ""
+            )
+            if url:
+                images.append({
+                    "image_id": str(img.get("image_id", "")),
+                    "url": url,
+                })
+        result["images"] = images
+    return result
+
+
 def _extract_images(topic: dict[str, Any]) -> list[dict[str, str]]:
-    """Extract image URLs from a topic."""
+    """Extract image URLs from a topic (excludes answer images, handled separately)."""
     images = []
-    for section in ("talk", "question", "answer", "task", "solution"):
+    for section in ("talk", "question", "task", "solution"):
         if section in topic and "images" in topic[section]:
             for img in topic[section]["images"]:
                 url = (
@@ -41,9 +73,9 @@ def _extract_images(topic: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _extract_files(topic: dict[str, Any]) -> list[dict[str, Any]]:
-    """Extract file info from a topic."""
+    """Extract file info from a topic (excludes answer files, handled separately)."""
     files = []
-    for section in ("talk", "question", "answer", "task", "solution"):
+    for section in ("talk", "question", "task", "solution"):
         if section in topic and "files" in topic[section]:
             for f in topic[section]["files"]:
                 files.append({
@@ -116,7 +148,14 @@ class Crawler:
                 break
 
             new_count = 0
+            reached_since = False
             for raw_topic in topics:
+                # Check --since date cutoff
+                create_time = raw_topic.get("create_time", "")
+                if self._config.since and create_time < self._config.since:
+                    reached_since = True
+                    break
+
                 topic_id = str(raw_topic.get("topic_id", ""))
                 if topic_id in existing_ids:
                     continue
@@ -128,6 +167,10 @@ class Crawler:
                 self._stats["topics"] += 1
 
             logger.info("Page %d: %d topics fetched, %d new", page, len(topics), new_count)
+
+            if reached_since:
+                logger.info("Reached --since cutoff (%s), stopping.", self._config.since)
+                break
 
             # Check max pages limit
             if self._config.max_pages > 0 and page >= self._config.max_pages:
@@ -167,6 +210,17 @@ class Crawler:
                 if downloaded:
                     downloaded_files.append(downloaded)
 
+        # Extract answer for Q&A topics
+        answer = _extract_answer(raw)
+
+        # Download answer images
+        answer_downloaded_images = []
+        if self._config.download_images and answer and answer.get("images"):
+            for img in answer["images"]:
+                downloaded = self._download_image(topic_id, img)
+                if downloaded:
+                    answer_downloaded_images.append(downloaded)
+
         # Fetch comments
         comments = []
         if self._config.crawl_comments:
@@ -174,7 +228,7 @@ class Crawler:
 
         owner = raw.get("owner", {})
 
-        return {
+        result: dict[str, Any] = {
             "topic_id": topic_id,
             "type": topic_type,
             "create_time": raw.get("create_time", ""),
@@ -192,6 +246,16 @@ class Crawler:
             "files": downloaded_files,
             "comments": comments,
         }
+
+        # Add answer field for Q&A topics
+        if answer is not None:
+            result["answer"] = {
+                "text": answer["text"],
+                "author": answer["author"],
+                "images": answer_downloaded_images,
+            }
+
+        return result
 
     def _download_image(self, topic_id: str, img: dict[str, str]) -> dict[str, str] | None:
         """Download a single image. Returns metadata or None on failure."""

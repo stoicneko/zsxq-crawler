@@ -23,6 +23,7 @@ class Config:
     crawl_comments: bool
     output_dir: str
     max_pages: int  # 0 means no limit
+    since: str  # ISO date string like "2024-03-16", empty means no limit
 
     @staticmethod
     def from_env() -> Config:
@@ -47,4 +48,5 @@ class Config:
             crawl_comments=os.getenv("ZSXQ_CRAWL_COMMENTS", "true").lower() == "true",
             output_dir=os.getenv("ZSXQ_OUTPUT_DIR", "output"),
             max_pages=int(os.getenv("ZSXQ_MAX_PAGES", "0")),
+            since=os.getenv("ZSXQ_SINCE", ""),
         )

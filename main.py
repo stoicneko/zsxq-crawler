@@ -34,6 +34,7 @@ def main() -> None:
     parser.add_argument("--no-files", action="store_true", help="Skip file downloads")
     parser.add_argument("--no-comments", action="store_true", help="Skip comment fetching")
     parser.add_argument("--max-pages", type=int, default=0, help="Max pages to crawl (0=unlimited)")
+    parser.add_argument("--since", type=str, default="", help="Only crawl topics after this date (e.g. 2024-03-16)")
     args = parser.parse_args()
 
     setup_logging(args.verbose)
@@ -41,7 +42,7 @@ def main() -> None:
     config = Config.from_env()
 
     # Apply CLI overrides (create new Config with overrides)
-    if args.no_images or args.no_files or args.no_comments or args.max_pages:
+    if args.no_images or args.no_files or args.no_comments or args.max_pages or args.since:
         config = Config(
             cookie=config.cookie,
             group_id=config.group_id,
@@ -53,6 +54,7 @@ def main() -> None:
             crawl_comments=config.crawl_comments and not args.no_comments,
             output_dir=config.output_dir,
             max_pages=args.max_pages if args.max_pages else config.max_pages,
+            since=args.since if args.since else config.since,
         )
 
     storage = Storage(config.output_dir, config.group_id)
