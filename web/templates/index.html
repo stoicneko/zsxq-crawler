@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识星球浏览器</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="site-header">
+      <h1 class="site-title">知识星球浏览器</h1>
+      <span class="group-id">Group: {{ group_id }}</span>
+    </header>
+    <main class="main-layout">
+      <aside class="sidebar">
+        <!-- Filters and stats will be rendered here by app.js -->
+        <p class="placeholder-text">加载中…</p>
+      </aside>
+      <section class="topic-list">
+        <!-- Topics will be rendered here by app.js -->
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
