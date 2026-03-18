@@ -42,6 +42,27 @@ TOPICS_DIR = GROUP_DIR / "topics"
 IMAGES_DIR = GROUP_DIR / "images"
 USER_DATA_FILE = GROUP_DIR / "user_data.json"
 
+
+def reload_config(output_dir: Path, group_id: str) -> None:
+    """Re-derive all path constants and clear in-memory topic data.
+
+    Useful in tests to point the app at a fixture directory without restarting.
+    Re-assigns the module-level path globals and resets _topics/_topic_index.
+    """
+    global OUTPUT_DIR, GROUP_ID, GROUP_DIR, TOPICS_DIR, IMAGES_DIR, USER_DATA_FILE
+    global _topics, _topic_index
+
+    OUTPUT_DIR = output_dir
+    GROUP_ID = group_id
+    GROUP_DIR = OUTPUT_DIR / GROUP_ID
+    TOPICS_DIR = GROUP_DIR / "topics"
+    IMAGES_DIR = GROUP_DIR / "images"
+    USER_DATA_FILE = GROUP_DIR / "user_data.json"
+
+    _topics = []
+    _topic_index = {}
+
+
 # ---------------------------------------------------------------------------
 # Tag parsing
 # ---------------------------------------------------------------------------
@@ -131,7 +152,10 @@ def _load_user_data() -> dict[str, Any]:
 
 
 def _save_user_data(data: dict[str, Any]) -> None:
-    """Persist user_data to disk."""
+    """Persist user_data to disk.
+
+    Note: not concurrency-safe; assumes single-process execution.
+    """
     USER_DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = USER_DATA_FILE.with_suffix(".tmp")
     with tmp.open("w", encoding="utf-8") as f:
@@ -180,18 +204,18 @@ def _matches_query(topic: dict[str, Any], q: str) -> bool:
 
 
 def _parse_date(s: str) -> datetime:
-    """Parse ISO 8601 date/datetime string; returns UTC-aware datetime."""
+    """Parse ISO 8601 date/datetime string; returns UTC-aware datetime.
+
+    Raises ValueError if the string cannot be parsed as a valid date.
+    """
     # Support both date-only "2024-03-16" and full ISO with offset
     s = s.strip()
     if len(s) == 10:
+        # Raises ValueError on invalid date components (e.g. month 13)
         return datetime(int(s[:4]), int(s[5:7]), int(s[8:10]), tzinfo=timezone.utc)
     # Try ISO format with +HH:MM offset (Python 3.7+)
-    try:
-        # Replace trailing Z
-        s_norm = s.replace("Z", "+00:00")
-        return datetime.fromisoformat(s_norm)
-    except ValueError:
-        return datetime.min.replace(tzinfo=timezone.utc)
+    s_norm = s.replace("Z", "+00:00")
+    return datetime.fromisoformat(s_norm)
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +225,7 @@ def _parse_date(s: str) -> datetime:
 @app.route("/")
 def index() -> str:
     """Main SPA page."""
-    return render_template("index.html", group_id=GROUP_ID)
+    return render_template("index.html", group_id=GROUP_ID, total=len(_topics))
 
 
 @app.route("/api/topics")
@@ -242,8 +266,14 @@ def api_topics() -> Response:
     starred_raw = request.args.get("starred", "").lower()
     starred_filter = starred_raw in ("1", "true") if starred_raw else None
 
-    since_dt = _parse_date(since_raw) if since_raw else None
-    until_dt = _parse_date(until_raw) if until_raw else None
+    try:
+        since_dt = _parse_date(since_raw) if since_raw else None
+    except ValueError:
+        return jsonify({"success": False, "error": f"Invalid 'since' date: {since_raw!r}"}), 400
+    try:
+        until_dt = _parse_date(until_raw) if until_raw else None
+    except ValueError:
+        return jsonify({"success": False, "error": f"Invalid 'until' date: {until_raw!r}"}), 400
 
     # --- Filter ---
     filtered: list[dict[str, Any]] = []
@@ -362,12 +392,16 @@ def api_stats() -> Response:
     type_counts: dict[str, int] = {}
     digested_count = 0
     starred_count = sum(1 for v in user_data["stars"].values() if v)
+    total_images = 0
+    total_comments = 0
 
     for t in _topics:
         ttype = t.get("type", "unknown")
         type_counts[ttype] = type_counts.get(ttype, 0) + 1
         if t.get("digested"):
             digested_count += 1
+        total_images += len(t.get("images") or [])
+        total_comments += len(t.get("comments") or [])
 
     return jsonify(
         {
@@ -379,6 +413,8 @@ def api_stats() -> Response:
                 "digested_count": digested_count,
                 "starred_count": starred_count,
                 "total_tags": len(user_data["tags"]),
+                "total_images": total_images,
+                "total_comments": total_comments,
             },
         }
     )
