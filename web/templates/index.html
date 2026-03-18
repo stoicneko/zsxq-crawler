@@ -3,25 +3,83 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>知识星球浏览器</title>
+  <title>ZSXQ Viewer</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div id="app">
-    <header class="site-header">
-      <h1 class="site-title">知识星球浏览器</h1>
-      <span class="group-id">Group: {{ group_id }}</span>
-    </header>
-    <main class="main-layout">
-      <aside class="sidebar">
-        <!-- Filters and stats will be rendered here by app.js -->
-        <p class="placeholder-text">加载中…</p>
-      </aside>
-      <section class="topic-list">
-        <!-- Topics will be rendered here by app.js -->
-      </section>
-    </main>
+  <!-- Sticky header -->
+  <header class="header">
+    <div class="header-inner">
+      <h1>知识星球</h1>
+      <span class="stats-badge" id="stats-badge">{{ total }} 条</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Search bar -->
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="搜索内容..." />
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <select id="filter-type">
+        <option value="">全部类型</option>
+        <option value="talk">分享 (talk)</option>
+        <option value="q&a">问答 (q&a)</option>
+      </select>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="filter-digested" /> 精华
+      </label>
+      <input type="date" id="filter-since" placeholder="开始日期" />
+      <input type="date" id="filter-until" placeholder="结束日期" />
+      <select id="filter-tag">
+        <option value="">全部标签</option>
+      </select>
+      <label class="filter-checkbox">
+        <input type="checkbox" id="filter-starred" /> ⭐ 收藏
+      </label>
+    </div>
+
+    <!-- Topics container (populated by JS) -->
+    <div id="topics"></div>
+
+    <!-- Loading spinner -->
+    <div id="loading" class="loading" style="display:none;">
+      <div class="spinner"></div>
+    </div>
+
+    <!-- Scroll sentinel for infinite scroll -->
+    <div id="scroll-sentinel"></div>
+
+    <!-- No results message -->
+    <div id="no-results" class="no-results" style="display:none;">
+      没有找到相关内容
+    </div>
+  </main>
+
+  <!-- Lightbox overlay (hidden) -->
+  <div id="lightbox" class="lightbox" style="display:none;" onclick="closeLightbox()">
+    <img id="lightbox-img" src="" alt="" />
   </div>
+
+  <!-- Tag modal (hidden) -->
+  <div id="tag-modal" class="modal-overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>管理标签</h3>
+        <button class="modal-close" onclick="closeTagModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="current-tags" class="current-tags"></div>
+        <div class="tag-input-row">
+          <input type="text" id="tag-input" placeholder="输入新标签..." />
+          <button onclick="addTag()">添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>
