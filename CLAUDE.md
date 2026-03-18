@@ -21,6 +21,12 @@ python main.py --no-images --no-files   # text + comments only
 python main.py -v                       # verbose (includes httpcore debug logs)
 
 # Configuration: copy .env.example to .env and set ZSXQ_COOKIE and ZSXQ_GROUP_ID
+
+# Web viewer
+python web/app.py                       # start web UI at http://localhost:5000
+
+# Tests
+python -m pytest tests/ -v
 ```
 
 ## Architecture
@@ -44,6 +50,18 @@ zsxq_crawler/
 - X-Signature computed as `SHA1("{api_path} {timestamp_ms} zsxqapi2020")`
 
 **Output structure:** `output/{group_id}/` with `topics/`, `images/`, `files/` subdirs, plus `all_topics.json` and `summary.json`
+
+```
+web/
+  app.py            → Flask web viewer: REST API, topic loading, search/filter, user data
+  static/
+    style.css       → Minimalist Notion-like CSS theme
+    app.js          → Frontend: infinite scroll, search, filter, star/tag, lightbox
+  templates/
+    index.html      → Main page template (Jinja2)
+```
+
+**Web viewer:** Loads all topic JSON files into memory at startup, provides paginated browsing with search, type/date/digested filtering, star bookmarks, custom tags, and image lightbox. User data persisted to `output/{group_id}/user_data.json`.
 
 ## API Notes
 
