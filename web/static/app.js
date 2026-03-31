@@ -19,6 +19,16 @@ const state = {
   // Tag modal state
   currentTagTopicId: null,
   currentTagTopicTags: [],
+  lightbox: {
+    scale: 1,
+    minScale: 0.5,
+    maxScale: 4,
+    offsetX: 0,
+    offsetY: 0,
+    dragging: false,
+    startX: 0,
+    startY: 0,
+  },
 };
 
 // ============================================================
@@ -62,6 +72,13 @@ function debounce(fn, ms) {
 // API functions
 // ============================================================
 
+/** Wrapper around fetch that checks response status and returns parsed JSON. */
+async function apiFetch(url, options) {
+  const res = await fetch(url, options);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 async function fetchTopics() {
   const params = new URLSearchParams({ page: state.page, per_page: state.perPage });
   const f = state.filters;
@@ -73,42 +90,37 @@ async function fetchTopics() {
   if (f.tag)      params.set('tag', f.tag);
   if (f.starred)  params.set('starred', '1');
 
-  const res = await fetch(`/api/topics?${params}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return apiFetch(`/api/topics?${params}`);
 }
 
 async function toggleStar(topicId) {
-  const res = await fetch(`/api/topics/${topicId}/star`, { method: 'POST' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return apiFetch(`/api/topics/${topicId}/star`, { method: 'POST' });
 }
 
 async function updateTags(topicId, tags) {
-  const res = await fetch(`/api/topics/${topicId}/tags`, {
+  return apiFetch(`/api/topics/${topicId}/tags`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tags }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 async function fetchAllTags() {
-  const res = await fetch('/api/tags');
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return apiFetch('/api/tags');
 }
 
 async function fetchStats() {
-  const res = await fetch('/api/stats');
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return apiFetch('/api/stats');
 }
 
 // ============================================================
 // Rendering
 // ============================================================
+
+/** Render an array of tags as tag-chip spans. */
+function renderTagChips(tags) {
+  return tags.map(t => `<span class="tag-chip">${escapeHtml(t)}</span>`).join('');
+}
 
 /**
  * Render a single image thumbnail that opens the lightbox on click.
@@ -173,11 +185,9 @@ function renderTopic(topic) {
     </div>`;
 
   // User tags chips
-  const userTagsHtml = (topic.user_tags && topic.user_tags.length > 0)
-    ? `<div class="user-tags" id="tags-${topicId}">${
-        topic.user_tags.map(t => `<span class="tag-chip">${escapeHtml(t)}</span>`).join('')
-      }</div>`
-    : `<div class="user-tags" id="tags-${topicId}"></div>`;
+  const userTagsHtml = `<div class="user-tags" id="tags-${topicId}">${
+    topic.user_tags && topic.user_tags.length > 0 ? renderTagChips(topic.user_tags) : ''
+  }</div>`;
 
   // Answer block (q&a)
   let answerHtml = '';
@@ -401,16 +411,109 @@ async function loadStats() {
 // Lightbox
 // ============================================================
 
+function applyLightboxTransform() {
+  const img = document.getElementById('lightbox-img');
+  if (!img) return;
+
+  const { scale, offsetX, offsetY, dragging } = state.lightbox;
+  img.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  img.style.cursor = dragging ? 'grabbing' : (scale > 1 ? 'grab' : 'default');
+}
+
+function resetLightboxView() {
+  state.lightbox.scale = 1;
+  state.lightbox.offsetX = 0;
+  state.lightbox.offsetY = 0;
+  state.lightbox.dragging = false;
+  applyLightboxTransform();
+}
+
+function zoomLightbox(factor) {
+  const next = Math.min(
+    state.lightbox.maxScale,
+    Math.max(state.lightbox.minScale, state.lightbox.scale * factor),
+  );
+  state.lightbox.scale = Number(next.toFixed(3));
+  if (state.lightbox.scale <= 1) {
+    state.lightbox.offsetX = 0;
+    state.lightbox.offsetY = 0;
+  }
+  applyLightboxTransform();
+}
+
 function openLightbox(src) {
   const lb  = document.getElementById('lightbox');
   const img = document.getElementById('lightbox-img');
+  resetLightboxView();
   img.src = src;
   lb.style.display = 'flex';
 }
 
 function closeLightbox() {
+  const img = document.getElementById('lightbox-img');
   document.getElementById('lightbox').style.display = 'none';
-  document.getElementById('lightbox-img').src = '';
+  img.src = '';
+  resetLightboxView();
+}
+
+function handleLightboxBackdropClick(event) {
+  if (event.target === event.currentTarget) {
+    closeLightbox();
+  }
+}
+
+function initLightbox() {
+  const stage = document.getElementById('lightbox-stage');
+  const img = document.getElementById('lightbox-img');
+  if (!stage || !img) return;
+
+  img.addEventListener('load', () => {
+    resetLightboxView();
+  });
+
+  stage.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    zoomLightbox(event.deltaY < 0 ? 1.1 : 0.9);
+  }, { passive: false });
+
+  img.addEventListener('pointerdown', (event) => {
+    if (state.lightbox.scale <= 1) return;
+    event.preventDefault();
+    state.lightbox.dragging = true;
+    state.lightbox.startX = event.clientX - state.lightbox.offsetX;
+    state.lightbox.startY = event.clientY - state.lightbox.offsetY;
+    img.setPointerCapture(event.pointerId);
+    applyLightboxTransform();
+  });
+
+  img.addEventListener('pointermove', (event) => {
+    if (!state.lightbox.dragging) return;
+    state.lightbox.offsetX = event.clientX - state.lightbox.startX;
+    state.lightbox.offsetY = event.clientY - state.lightbox.startY;
+    applyLightboxTransform();
+  });
+
+  const stopDragging = (event) => {
+    if (!state.lightbox.dragging) return;
+    state.lightbox.dragging = false;
+    if (event.pointerId !== undefined && img.hasPointerCapture(event.pointerId)) {
+      img.releasePointerCapture(event.pointerId);
+    }
+    applyLightboxTransform();
+  };
+
+  img.addEventListener('pointerup', stopDragging);
+  img.addEventListener('pointercancel', stopDragging);
+
+  img.addEventListener('dblclick', () => {
+    if (state.lightbox.scale === 1) {
+      state.lightbox.scale = 2;
+    } else {
+      resetLightboxView();
+      return;
+    }
+    applyLightboxTransform();
+  });
 }
 
 // ============================================================
@@ -502,9 +605,7 @@ async function persistTags() {
     // Update tag chips on the topic card in-place
     const tagsContainer = document.getElementById(`tags-${topicId}`);
     if (tagsContainer) {
-      tagsContainer.innerHTML = json.data.tags
-        .map(t => `<span class="tag-chip">${escapeHtml(t)}</span>`)
-        .join('');
+      tagsContainer.innerHTML = renderTagChips(json.data.tags);
     }
 
     // Refresh the filter-tag dropdown to include any new tags
@@ -523,6 +624,20 @@ function initKeyboard() {
     if (e.key === 'Escape') {
       closeLightbox();
       closeTagModal();
+    }
+    if (document.getElementById('lightbox').style.display === 'flex') {
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        zoomLightbox(1.1);
+      }
+      if (e.key === '-') {
+        e.preventDefault();
+        zoomLightbox(0.9);
+      }
+      if (e.key === '0') {
+        e.preventDefault();
+        resetLightboxView();
+      }
     }
   });
 
@@ -543,6 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSearch();
   initFilters();
   initKeyboard();
+  initLightbox();
   initInfiniteScroll();
   populateTagFilter();
   // Initial load — stats badge is pre-rendered server-side via Jinja,

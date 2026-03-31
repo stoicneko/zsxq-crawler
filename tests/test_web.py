@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -150,6 +151,30 @@ def get_json(client, url, **kwargs):
     """GET url and return parsed JSON."""
     resp = client.get(url, **kwargs)
     return resp, resp.get_json()
+
+
+@pytest.fixture()
+def reload_client(tmp_path):
+    """Function-scoped client for reload tests — isolates side effects."""
+    import web.app as web_app
+
+    group_id = "reload_test_group"
+    topics_dir = tmp_path / group_id / "topics"
+    topics_dir.mkdir(parents=True)
+
+    for topic in ALL_FIXTURE_TOPICS:
+        (topics_dir / f"{topic['topic_id']}.json").write_text(
+            json.dumps(topic, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    web_app.reload_config(tmp_path, group_id)
+    web_app.load_topics()
+
+    web_app.app.config["TESTING"] = True
+    client = web_app.app.test_client()
+
+    yield client, web_app, topics_dir
 
 
 # ---------------------------------------------------------------------------
@@ -492,6 +517,83 @@ class TestStats:
         )
         resp, data = get_json(client, "/api/stats")
         assert data["data"]["total_tags"] == 2
+
+
+class TestReload:
+    def test_api_reload_returns_success(self, reload_client):
+        """POST /api/reload reloads topics and returns count."""
+        client, _, _ = reload_client
+        resp = client.post("/api/reload")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["topics_count"] == 5
+
+    def test_api_reload_picks_up_new_file(self, reload_client):
+        """After adding a new topic JSON file, reload picks it up."""
+        client, web_app, _ = reload_client
+        new_topic = {
+            "topic_id": "topic_new",
+            "type": "talk",
+            "create_time": "2026-01-01T00:00:00+00:00",
+            "text": "Brand new topic",
+            "digested": False,
+            "images": [],
+            "comments": [],
+        }
+        new_path = web_app.TOPICS_DIR / "topic_new.json"
+        new_path.write_text(
+            json.dumps(new_topic, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        try:
+            resp = client.post("/api/reload")
+            data = resp.get_json()
+            assert data["topics_count"] == 6
+
+            resp2, data2 = get_json(client, "/api/topics?q=Brand+new")
+            assert resp2.status_code == 200
+            assert data2["meta"]["total"] == 1
+            assert data2["data"][0]["topic_id"] == "topic_new"
+        finally:
+            new_path.unlink(missing_ok=True)
+            client.post("/api/reload")
+
+    def test_api_reload_with_valid_token(self, reload_client):
+        """When ZSXQ_RELOAD_TOKEN is set, valid token is accepted."""
+        client, _, _ = reload_client
+        original_token = os.environ.get("ZSXQ_RELOAD_TOKEN")
+        os.environ["ZSXQ_RELOAD_TOKEN"] = "test-secret-token"
+        try:
+            resp = client.post(
+                "/api/reload",
+                headers={"Authorization": "Bearer test-secret-token"},
+            )
+            assert resp.status_code == 200
+            assert resp.get_json()["success"] is True
+        finally:
+            if original_token is None:
+                os.environ.pop("ZSXQ_RELOAD_TOKEN", None)
+            else:
+                os.environ["ZSXQ_RELOAD_TOKEN"] = original_token
+
+    def test_api_reload_rejects_bad_token(self, reload_client):
+        """When ZSXQ_RELOAD_TOKEN is set, wrong token returns 403."""
+        client, _, _ = reload_client
+        original_token = os.environ.get("ZSXQ_RELOAD_TOKEN")
+        os.environ["ZSXQ_RELOAD_TOKEN"] = "test-secret-token"
+        try:
+            resp = client.post(
+                "/api/reload",
+                headers={"Authorization": "Bearer wrong-token"},
+            )
+            assert resp.status_code == 403
+            assert resp.get_json()["success"] is False
+        finally:
+            if original_token is None:
+                os.environ.pop("ZSXQ_RELOAD_TOKEN", None)
+            else:
+                os.environ["ZSXQ_RELOAD_TOKEN"] = original_token
 
 
 class TestEmbeddedTags:

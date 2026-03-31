@@ -59,8 +59,16 @@
   </main>
 
   <!-- Lightbox overlay (hidden) -->
-  <div id="lightbox" class="lightbox" style="display:none;" onclick="closeLightbox()">
-    <img id="lightbox-img" src="" alt="" />
+  <div id="lightbox" class="lightbox" style="display:none;" onclick="handleLightboxBackdropClick(event)">
+    <div class="lightbox-toolbar" onclick="event.stopPropagation()">
+      <button class="lightbox-btn" type="button" onclick="zoomLightbox(0.9)">-</button>
+      <button class="lightbox-btn" type="button" onclick="resetLightboxView()">100%</button>
+      <button class="lightbox-btn" type="button" onclick="zoomLightbox(1.1)">+</button>
+      <button class="lightbox-btn lightbox-close-btn" type="button" onclick="closeLightbox()">×</button>
+    </div>
+    <div id="lightbox-stage" class="lightbox-stage" onclick="event.stopPropagation()">
+      <img id="lightbox-img" src="" alt="" draggable="false" />
+    </div>
   </div>
 
   <!-- Tag modal (hidden) -->

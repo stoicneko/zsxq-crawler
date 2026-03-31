@@ -73,11 +73,6 @@ _WEB_TAG_RE = re.compile(r'<e type="web" href="([^"]*)" title="([^"]*)" />')
 def _parse_embedded_tags(text: str) -> str:
     """Replace <e type="web" .../> tags with HTML anchor elements."""
 
-    def _replace(m: re.Match) -> str:
-        href = urllib.parse.unquote(m.group(1))
-        title = urllib.parse.unquote(m.group(2)) or href
-        return f'<a href="{href}" target="_blank" rel="noopener noreferrer">{title}</a>'
-
     # Escape < and > for plain text parts while keeping the replaced anchors safe.
     # Strategy: split on the tag, escape each plain segment, reassemble.
     parts = _WEB_TAG_RE.split(text)
@@ -423,7 +418,20 @@ def api_stats() -> Response:
 @app.route("/images/<path:filename>")
 def serve_image(filename: str) -> Response:
     """Serve images from the images output directory."""
-    return send_from_directory(IMAGES_DIR, filename)
+    return send_from_directory(IMAGES_DIR.resolve(), filename)
+
+
+@app.route("/api/reload", methods=["POST"])
+def api_reload() -> Response:
+    """Reload all topics from disk into memory."""
+    reload_token = os.getenv("ZSXQ_RELOAD_TOKEN", "")
+    if reload_token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header != f"Bearer {reload_token}":
+            return jsonify({"success": False, "error": "Forbidden"}), 403
+
+    load_topics()
+    return jsonify({"success": True, "topics_count": len(_topics)})
 
 
 # ---------------------------------------------------------------------------
