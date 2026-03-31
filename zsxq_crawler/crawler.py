@@ -160,7 +160,7 @@ class Crawler:
                 if topic_id in existing_ids:
                     continue
 
-                processed = self._process_topic(raw_topic)
+                processed = self.process_topic(raw_topic)
                 all_topics.append(processed)
                 self._storage.save_topic(processed)
                 new_count += 1
@@ -186,7 +186,7 @@ class Crawler:
 
         return all_topics
 
-    def _process_topic(self, raw: dict[str, Any]) -> dict[str, Any]:
+    def process_topic(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Process a single topic: extract data, download media, fetch comments."""
         topic_id = str(raw.get("topic_id", ""))
         topic_type = raw.get("type", "unknown")
@@ -256,6 +256,12 @@ class Crawler:
             }
 
         return result
+
+    def process_and_save(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Process a raw topic and persist it. Returns the processed topic dict."""
+        processed = self.process_topic(raw)
+        self._storage.save_topic(processed)
+        return processed
 
     def _download_image(self, topic_id: str, img: dict[str, str]) -> dict[str, str] | None:
         """Download a single image. Returns metadata or None on failure."""

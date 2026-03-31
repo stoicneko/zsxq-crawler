@@ -1,0 +1,6 @@
+[Unit]
+Description=zsxq Services (Monitor + Web Viewer)
+Wants=zsxq-monitor.service zsxq-web.service
+
+[Install]
+WantedBy=default.target

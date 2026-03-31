@@ -1,0 +1,15 @@
+[Unit]
+Description=zsxq Monitor - real-time content monitoring
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/zsxq
+ExecStart=%h/Documents/zsxq/venv/bin/python monitor.py
+EnvironmentFile=%h/Documents/zsxq/.env
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=zsxq.target

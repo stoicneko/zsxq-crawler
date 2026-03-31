@@ -25,6 +25,17 @@ python main.py -v                       # verbose (includes httpcore debug logs)
 # Web viewer
 python web/app.py                       # start web UI at http://localhost:5000
 
+# Monitor (real-time updates)
+python monitor.py                       # start monitoring (poll every 5 min)
+python monitor.py --interval 60         # custom poll interval
+python monitor.py --no-notify           # don't notify web app
+python monitor.py --no-images --no-files   # lightweight mode
+
+# systemd (deploy)
+systemctl --user start zsxq.target      # start both monitor + web
+systemctl --user enable zsxq.target     # enable on boot
+journalctl --user -u zsxq-monitor -f    # monitor logs
+
 # Tests
 python -m pytest tests/ -v
 ```
@@ -37,6 +48,7 @@ zsxq_crawler/
   config.py       → frozen dataclass Config, loaded from .env via python-dotenv
   client.py       → ZsxqClient: httpx-based HTTP client with rate limiting + retry
   crawler.py      → Crawler: pagination, topic processing, media download, comment fetch
+  monitor.py      → Monitor: polling loop, new topic detection, web reload notification
   storage.py      → Storage: JSON persistence, file/image download paths
 ```
 

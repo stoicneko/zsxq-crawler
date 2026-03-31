@@ -1,0 +1,14 @@
+[Unit]
+Description=zsxq Web Viewer
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Documents/zsxq
+ExecStart=%h/Documents/zsxq/venv/bin/python web/app.py
+EnvironmentFile=%h/Documents/zsxq/.env
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=zsxq.target
