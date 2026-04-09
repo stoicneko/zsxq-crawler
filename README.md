@@ -1,20 +1,20 @@
 # zsxq-crawler
 
-[中文文档](README_CN.md)
+[English](README_EN.md)
 
-A crawler and toolkit for [知识星球](https://zsxq.com) (Knowledge Planet) paid communities. Fetches topics, comments, images, and file attachments via the zsxq REST API — then browse them locally with a web viewer, monitor for new content in real time, or export to a Markdown knowledge base.
+知识星球付费社群爬虫及工具集。通过 zsxq REST API 抓取主题、评论、图片和文件附件，支持本地网页浏览、实时监控和知识库导出。
 
-## Features
+## 特性
 
-- **Incremental crawling** — skips already-downloaded topics, safe to interrupt and resume
-- **Full content** — topics, comments, images, and file attachments
-- **Rate limit handling** — configurable delays, batch pauses, and automatic retry on API error 1059
-- **Web viewer** — Notion-style local UI with search, filtering, bookmarks, tags, and image lightbox
-- **Real-time monitor** — polls for new topics and auto-refreshes the web viewer
-- **Knowledge base export** — converts topics to Obsidian-compatible Markdown with indexes
-- **systemd deployment** — run monitor + web viewer as user services
+- **增量爬取** — 自动跳过已下载的主题，支持中断后继续
+- **完整内容** — 主题、评论、图片、文件附件
+- **限流处理** — 可配置请求间隔、批次暂停，API 1059 错误自动重试
+- **网页浏览器** — Notion 风格本地 UI，支持搜索、筛选、收藏、标签和图片灯箱
+- **实时监控** — 轮询新主题并自动刷新网页浏览器
+- **知识库导出** — 将主题转换为 Obsidian 兼容的 Markdown 文件，含自动生成索引
+- **systemd 部署** — 以用户服务方式运行监控和网页浏览器
 
-## Quick Start
+## 快速开始
 
 ```bash
 git clone https://github.com/stoicneko/zsxq-crawler.git
@@ -25,131 +25,131 @@ source venv/bin/activate        # bash/zsh
 pip install -r requirements.txt
 ```
 
-### Get Your Cookie
+### 获取 Cookie
 
-1. Open https://wx.zsxq.com in a browser and log in (WeChat QR scan)
-2. Open DevTools (F12) → Network tab
-3. Find any request to `api.zsxq.com`
-4. Copy the `zsxq_access_token=...` value from the Cookie header
+1. 浏览器打开 https://wx.zsxq.com 并扫码登录
+2. F12 打开开发者工具 → Network（网络）标签
+3. 找到任意 `api.zsxq.com` 的请求
+4. 从 Cookie 请求头中复制 `zsxq_access_token=...` 的值
 
-### Configure
+### 配置
 
 ```bash
 cp .env.example .env
-# Edit .env — set ZSXQ_COOKIE and ZSXQ_GROUP_ID
+# 编辑 .env，填入 ZSXQ_COOKIE 和 ZSXQ_GROUP_ID
 ```
 
-### Run the Crawler
+### 运行爬虫
 
 ```bash
-python main.py                          # crawl everything
-python main.py --max-pages 5            # limit to 5 pages (100 topics)
-python main.py --no-images --no-files   # text and comments only
-python main.py --no-comments            # skip comment fetching
-python main.py -v                       # verbose logging
+python main.py                          # 爬取全部
+python main.py --max-pages 5            # 限制 5 页（100 条主题）
+python main.py --no-images --no-files   # 仅爬文字和评论
+python main.py --no-comments            # 跳过评论
+python main.py -v                       # 详细日志
 ```
 
-Press `Ctrl+C` to stop — progress is saved automatically.
+按 `Ctrl+C` 可随时中断，已爬取的数据自动保存。
 
-## Web Viewer
+## 网页浏览器
 
-A local Flask app that lets you browse crawled topics in a clean, Notion-inspired interface.
+基于 Flask 的本地应用，以简洁的 Notion 风格界面浏览已爬取的主题。
 
 ```bash
-python web/app.py                       # start at http://localhost:5000
+python web/app.py                       # 启动于 http://localhost:5000
 ```
 
-**Capabilities:**
-- Infinite-scroll topic list with full-text search
-- Filter by type (talk / Q&A / task), date range, digested status
-- Star bookmarks and custom tags (persisted to `user_data.json`)
-- Image lightbox with zoom (mouse wheel / +/-), pan (drag), and keyboard shortcuts
-- `/api/reload` endpoint to refresh topics from disk (used by the monitor)
+**功能：**
+- 无限滚动主题列表，支持全文搜索
+- 按类型（话题 / 问答 / 作业）、日期范围、加精状态筛选
+- 收藏和自定义标签（持久化到 `user_data.json`）
+- 图片灯箱，支持缩放（鼠标滚轮 / +/-）、拖拽平移和键盘快捷键
+- `/api/reload` 端点用于从磁盘刷新主题（供监控服务调用）
 
-## Real-time Monitor
+## 实时监控
 
-A polling service that watches for new topics and automatically downloads them.
+轮询服务，监控新主题并自动下载。
 
 ```bash
-python monitor.py                       # poll every 5 minutes (default)
-python monitor.py --interval 60         # poll every 60 seconds
-python monitor.py --no-notify           # don't notify web app on new topics
-python monitor.py --no-images --no-files   # lightweight mode
-python monitor.py -v                    # verbose logging
+python monitor.py                       # 每 5 分钟轮询一次（默认）
+python monitor.py --interval 60         # 每 60 秒轮询一次
+python monitor.py --no-notify           # 不通知网页应用
+python monitor.py --no-images --no-files   # 轻量模式
+python monitor.py -v                    # 详细日志
 ```
 
-When new topics are found, the monitor processes them through the crawler pipeline and sends a reload signal to the web viewer so it picks up changes instantly.
+发现新主题时，监控服务通过爬虫流水线处理并向网页浏览器发送刷新信号，实现即时更新。
 
-### systemd Deployment
+### systemd 部署
 
-Run both monitor and web viewer as user services:
+以用户服务方式同时运行监控和网页浏览器：
 
 ```bash
-# Install service files
+# 安装服务文件
 cp deploy/*.service deploy/*.target ~/.config/systemd/user/
 
-# Start both services
+# 启动服务
 systemctl --user start zsxq.target
-systemctl --user enable zsxq.target     # enable on boot
+systemctl --user enable zsxq.target     # 开机自启
 
-# Check logs
+# 查看日志
 journalctl --user -u zsxq-monitor -f
 journalctl --user -u zsxq-web -f
 ```
 
-## Knowledge Base Export
+## 知识库导出
 
-Convert crawled topics into Obsidian-compatible Markdown files with auto-generated indexes.
+将已爬取的主题转换为 Obsidian 兼容的 Markdown 文件，自动生成索引。
 
 ```bash
-python convert_to_kb.py                           # auto-detect group, output to knowledge-base/
-python convert_to_kb.py --output-dir my-kb         # custom output directory
-python convert_to_kb.py --source-dir output        # custom source directory
-python convert_to_kb.py --group-id 12345           # specify group ID
+python convert_to_kb.py                           # 自动检测 group，输出到 knowledge-base/
+python convert_to_kb.py --output-dir my-kb         # 自定义输出目录
+python convert_to_kb.py --source-dir output        # 自定义源目录
+python convert_to_kb.py --group-id 12345           # 指定 group ID
 ```
 
-**Generates:**
-- Individual Markdown files per topic (with metadata, images, comments)
-- Index by month, by author, and by type
-- Symlinked images directory for Obsidian attachment support
+**生成内容：**
+- 每个主题一个 Markdown 文件（含元数据、图片、评论）
+- 按月份、作者、类型分类的索引
+- 符号链接的图片目录，方便 Obsidian 附件引用
 
-## Configuration
+## 配置项
 
-All settings are in `.env` (see `.env.example`):
+所有配置在 `.env` 文件中（参考 `.env.example`）：
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ZSXQ_COOKIE` | *(required)* | Browser cookie with `zsxq_access_token` |
-| `ZSXQ_GROUP_ID` | *(required)* | Group ID from the community URL |
-| `ZSXQ_REQUEST_DELAY` | `3` | Seconds between requests |
-| `ZSXQ_BATCH_SIZE` | `15` | Requests per batch before pausing |
-| `ZSXQ_BATCH_PAUSE` | `180` | Seconds to pause between batches |
-| `ZSXQ_DOWNLOAD_IMAGES` | `true` | Download images |
-| `ZSXQ_DOWNLOAD_FILES` | `true` | Download file attachments |
-| `ZSXQ_CRAWL_COMMENTS` | `true` | Fetch comments |
-| `ZSXQ_OUTPUT_DIR` | `output` | Output directory |
-| `ZSXQ_MAX_PAGES` | `0` | Max pages to crawl (0 = unlimited) |
-| `ZSXQ_MONITOR_INTERVAL` | `300` | Monitor polling interval in seconds |
-| `ZSXQ_RELOAD_TOKEN` | *(empty)* | Bearer token for `/api/reload` auth |
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `ZSXQ_COOKIE` | *（必填）* | 浏览器 Cookie，包含 `zsxq_access_token` |
+| `ZSXQ_GROUP_ID` | *（必填）* | 社群 URL 中的 Group ID |
+| `ZSXQ_REQUEST_DELAY` | `3` | 请求间隔（秒） |
+| `ZSXQ_BATCH_SIZE` | `15` | 每批请求数量 |
+| `ZSXQ_BATCH_PAUSE` | `180` | 批次间暂停时间（秒） |
+| `ZSXQ_DOWNLOAD_IMAGES` | `true` | 是否下载图片 |
+| `ZSXQ_DOWNLOAD_FILES` | `true` | 是否下载文件附件 |
+| `ZSXQ_CRAWL_COMMENTS` | `true` | 是否爬取评论 |
+| `ZSXQ_OUTPUT_DIR` | `output` | 输出目录 |
+| `ZSXQ_MAX_PAGES` | `0` | 最大爬取页数（0 = 不限） |
+| `ZSXQ_MONITOR_INTERVAL` | `300` | 监控轮询间隔（秒） |
+| `ZSXQ_RELOAD_TOKEN` | *（空）* | `/api/reload` 端点的 Bearer 认证令牌 |
 
-## Output
+## 输出结构
 
 ```
 output/{group_id}/
-├── all_topics.json      # all topics merged, sorted by date
-├── summary.json         # crawl statistics
-├── user_data.json       # stars and tags from web viewer
-├── topics/              # one JSON file per topic
+├── all_topics.json      # 全部主题合并，按时间排序
+├── summary.json         # 爬取统计
+├── user_data.json       # 网页浏览器的收藏和标签数据
+├── topics/              # 每个主题单独一个 JSON
 │   ├── {topic_id}.json
 │   └── ...
-├── images/              # downloaded images
+├── images/              # 下载的图片
 │   ├── {topic_id}_{image_id}.jpg
 │   └── ...
-└── files/               # downloaded attachments
+└── files/               # 下载的附件
     ├── {file_id}_{filename}
     └── ...
 ```
 
-## License
+## 许可证
 
 MIT
